@@ -1,0 +1,3 @@
+com.gcanalyzer.aggregation.HeapOccupancySummary
+com.gcanalyzer.aggregation.PauseTimeSummary
+com.gcanalyzer.aggregation.GCCycleCountsSummary
