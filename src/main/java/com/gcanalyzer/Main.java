@@ -1,5 +1,6 @@
 package com.gcanalyzer;
 
+import com.gcanalyzer.report.MarkerStyle;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -29,6 +30,12 @@ public class Main implements Callable<Integer> {
     @Option(names = {"-H", "--height"}, description = "Chart height in rows (default: ${DEFAULT-VALUE}).")
     private int height = 12;
 
+    @Option(names = {"-m", "--markers"},
+            paramLabel = "<style>",
+            description = "Overlay a glyph at each plotted sample point. "
+                    + "One of: off, dot, cross, bullet. Default: ${DEFAULT-VALUE}.")
+    private MarkerStyle markers = MarkerStyle.OFF;
+
     @Option(names = "--no-color", description = "Disable ANSI color in the diagnostics section.")
     private boolean noColor = false;
 
@@ -43,7 +50,7 @@ public class Main implements Callable<Integer> {
             return 2;
         }
         try {
-            new Analyzer(logFile, width, height, !noColor).run(System.out);
+            new Analyzer(logFile, width, height, !noColor, markers).run(System.out);
             return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
@@ -66,7 +73,9 @@ public class Main implements Callable<Integer> {
             Logger.getLogger("io.netty").setLevel(Level.SEVERE);
             Logger.getLogger("io.vertx").setLevel(Level.SEVERE);
         }
-        int exit = new CommandLine(new Main()).execute(args);
+        int exit = new CommandLine(new Main())
+                .setCaseInsensitiveEnumValuesAllowed(true)
+                .execute(args);
         System.exit(exit);
     }
 }

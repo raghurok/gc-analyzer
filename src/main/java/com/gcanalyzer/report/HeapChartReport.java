@@ -11,26 +11,44 @@ public class HeapChartReport {
     private final HeapOccupancySummary heap;
     private final int width;
     private final int height;
+    private final MarkerStyle markers;
 
-    public HeapChartReport(HeapOccupancySummary heap, int width, int height) {
+    public HeapChartReport(HeapOccupancySummary heap, int width, int height, MarkerStyle markers) {
         this.heap = heap;
         this.width = width;
         this.height = height;
+        this.markers = markers;
     }
 
     public void print(PrintStream out) {
-        out.println("=== Heap After GC (MB) ===");
+        out.println("=== Heap After GC (MB, linear) ===");
         if (heap == null || heap.isEmpty()) {
             out.println("(no heap occupancy data available)");
             return;
         }
         List<HeapOccupancySummary.Point> pts = heap.getAllPointsChronological();
         double[] series = downsample(pts, width);
+        int rows = Math.max(6, height);
         String chart = ASCIIGraph.fromSeries(series)
-                .withNumRows(Math.max(6, height))
+                .withNumRows(rows)
                 .plot();
+        int gutter = ChartUtil.detectGutterWidth(chart);
+        if (markers.enabled()) {
+            chart = ChartUtil.overlaySampleMarkers(chart, series, gutter, rows, markers.glyph());
+        }
         out.println(chart);
-        out.printf("(%d samples, %d points plotted)%n", pts.size(), series.length);
+
+        double startSec = pts.get(0).timestampSeconds;
+        double endSec = pts.get(pts.size() - 1).timestampSeconds;
+        int body = ChartUtil.detectBodyWidth(chart, gutter);
+        out.println(ChartUtil.xAxisFooter(startSec, endSec, body, gutter));
+
+        if (markers.enabled()) {
+            out.printf("(%d samples, %d points plotted, %c marks each plotted point)%n",
+                    pts.size(), series.length, markers.glyph());
+        } else {
+            out.printf("(%d samples, %d points plotted)%n", pts.size(), series.length);
+        }
     }
 
     /** Downsample the chronological occupancy series (KB) to at most {@code maxPoints} buckets (MB). */

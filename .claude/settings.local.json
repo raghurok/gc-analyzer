@@ -6,7 +6,10 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:mvnrepository.com)",
       "WebFetch(domain:central.sonatype.com)",
-      "Bash(./gradlew compileJava)"
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew -q run --args=\"samples/gc-sample.log\")",
+      "Bash(./gradlew -q run*\")",
+      "Bash(./gradlew -q build)"
     ]
   }
 }

@@ -13,7 +13,7 @@ Output is plain stdout, pipeable and SSH-friendly. No TUI, no interactivity — 
 ./build/install/gc-analyzer/bin/gc-analyzer <log>
 ```
 
-Flags: `<log>` (positional, plain/.gz/.zip), `--width`/`-w` (default 80), `--height`/`-H` (default 12), `--no-color`, `--help`, `--version`.
+Flags: `<log>` (positional, plain/.gz/.zip), `--width`/`-w` (default 80), `--height`/`-H` (default 12), `--markers`/`-m` (one of `off` (default), `dot`, `cross`, `bullet`), `--no-color`, `--help`, `--version`.
 
 Set `GC_ANALYZER_DEBUG=1` to unmute `java.util.logging` warnings from the gctoolkit parser and Netty/Vert.x — useful when a log isn't producing expected events.
 
@@ -26,6 +26,7 @@ src/main/
 ├── java/com/gcanalyzer/
 │   ├── Main.java                     picocli @Command entry point; JUL suppression
 │   ├── Analyzer.java                 orchestrates GCToolKit.analyze() + report ordering
+│   ├── report/MarkerStyle.java       enum OFF/DOT/CROSS/BULLET for --markers flag
 │   ├── aggregation/                  three Aggregation/Aggregator/Summary triples
 │   │   ├── HeapOccupancyAggregation.java      abstract API: addDataPoint(gcType, ts, kb)
 │   │   ├── HeapOccupancyAggregator.java       @Aggregates G1GC+GENERATIONAL, registers PauseEvents
@@ -38,8 +39,9 @@ src/main/
 │   │   └── GCCycleCountsSummary.java          EnumMap<GarbageCollectionTypes,Long> + cause counts
 │   └── report/
 │       ├── JvmSummaryReport.java     collector name, runtime, GC cycle breakdown, -Xmx from cmdline
-│       ├── HeapChartReport.java      downsamples KB→MB into chart width, renders via ASCIIGraph
-│       ├── PauseChartReport.java     downsamples via MAX per bucket (tail pauses stay visible)
+│       ├── HeapChartReport.java      downsamples KB→MB, linear scale, renders via ASCIIGraph
+│       ├── PauseChartReport.java     downsamples via MAX per bucket, log₁₀ scale (floor 0.1 ms)
+│       ├── ChartUtil.java            shared: X-axis footer, log label rewrite, marker overlay
 │       └── DiagnosticsReport.java    rule-based ✓/⚠/ℹ checks with ANSI color
 └── resources/META-INF/services/
     └── com.microsoft.gctoolkit.aggregator.Aggregation    SPI: lists the three *Summary classes
@@ -70,16 +72,16 @@ samples/                 sample GC logs for smoke testing (gc-sample.log, .gz)
 
 - `java { toolchain { languageVersion = 25 } }` in `build.gradle.kts`.
 - `settings.gradle.kts` applies `org.gradle.toolchains.foojay-resolver-convention:1.0.0` so Gradle can auto-download JDKs. Gradle 9.x requires Foojay 1.0.0+ (0.9.x throws `JvmVendorSpec does not have member field IBM_SEMERU`).
-- JVM flags live **only on the `startScripts` task**, not on `applicationDefaultJvmArgs`:
+- JVM flags live on `applicationDefaultJvmArgs` (shared by the `run` task and the installDist launcher):
   ```kotlin
-  tasks.named<CreateStartScripts>("startScripts") {
-      defaultJvmOpts = listOf(
+  application {
+      applicationDefaultJvmArgs = listOf(
           "--enable-native-access=ALL-UNNAMED",
           "--sun-misc-unsafe-memory-access=allow"
       )
   }
   ```
-  Reason: these flags suppress Netty's `sun.misc.Unsafe` warnings on JDK 23+, but `--sun-misc-unsafe-memory-access` was only added in JDK 23 — older toolchain JDKs reject it. Scoping to `startScripts` means the `run` task is unaffected, and only the generated `bin/gc-analyzer` launcher (which runs under whatever system JDK the user has) carries the flags.
+  Both flags suppress Netty's `sun.misc.Unsafe` / native-access warnings on JDK 23+. **Important**: `--sun-misc-unsafe-memory-access` was only added in JDK 23. If the toolchain is ever downgraded below JDK 23, move these flags onto the `startScripts` task instead (`tasks.named<CreateStartScripts>("startScripts") { defaultJvmOpts = ... }`), so the `run` task (which uses the toolchain JDK) doesn't trip over an unknown flag.
 
 ## Adding a new aggregation (e.g. allocation rate)
 
@@ -91,6 +93,18 @@ samples/                 sample GC logs for smoke testing (gc-sample.log, .gz)
 3. Consume it in `Analyzer.run()` via `jvm.getAggregation(XxxSummary.class)` and pass to a new or existing report.
 
 The canonical pattern is documented in `Aggregation.java`'s javadoc in the gctoolkit repo (`FullGCAggregator` / `MaxFullGCPauseTime` example). Keep `@Collates` on the abstract class, not the concrete `*Summary`.
+
+## Chart rendering details
+
+Both charts use `ascii-data`'s `ASCIIGraph` for the line rendering, with three post-processing passes applied in `ChartUtil`:
+
+1. **Marker overlay** (`overlaySampleMarkers`) — **opt-in via `--markers`, default off**. ASCIIGraph draws a continuous smoothed line with box-drawing characters; without markers you can't tell where individual downsampled bucket values sit on the curve, but every marker glyph we've tried trades readability somewhere (heavier glyphs break the eye's sense of line continuity), so the default is no overlay. The overlay computes `row = round((max - series[i]) / (max - min) * (chartHeight - 1))` for each bucket and stamps the caller-supplied glyph at `(firstBodyRow + row, gutter + i)`, only overwriting whitespace or line chars (`╭╮╯╰│─`) so labels and tick markers are preserved. Must be called with the exact same `series` and `chartHeight` values that were passed to `ASCIIGraph`, otherwise marker rows won't line up with the rendered curve. Available glyphs live in `MarkerStyle` — `DOT` (`·`), `CROSS` (`×`), `BULLET` (`●`) — calibrated lightest to heaviest.
+
+2. **Log label rewrite** (`rewriteLogYLabels`) — pause chart only. The pause chart feeds `log10(max(0.1, ms))` to ASCIIGraph, then regex-matches the Y-axis labels (`^\s*(-?\d+(?:\.\d+)?)\s*[┤┼]`) and replaces each with `Math.pow(10, logVal)` formatted to the same field width. Chart body is untouched so column alignment is preserved. **Order matters**: `overlaySampleMarkers` runs first (on the log-space chart with log series), *then* `rewriteLogYLabels` relabels — if you swap the order the marker rows will still be correct but the code is harder to reason about.
+
+3. **X-axis footer** (`xAxisFooter`) — aligned under the chart body. Takes start/end timestamps from the first and last data points (not from `jvm.getTimeOfFirstEvent()`, because GC events start slightly after JVM init).
+
+The pause chart's log floor is `MIN_PAUSE_MS = 0.1` — anything ≤ 0.1 ms collapses to the Y-axis floor. Empty downsample buckets carry-forward the previous bucket's max (not floor-fill), to avoid fake "quiet period" valleys when the chart happens to have a sparse column.
 
 ## Adding a new diagnostic check
 

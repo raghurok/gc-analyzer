@@ -6,6 +6,7 @@ import com.gcanalyzer.aggregation.PauseTimeSummary;
 import com.gcanalyzer.report.DiagnosticsReport;
 import com.gcanalyzer.report.HeapChartReport;
 import com.gcanalyzer.report.JvmSummaryReport;
+import com.gcanalyzer.report.MarkerStyle;
 import com.gcanalyzer.report.PauseChartReport;
 import com.microsoft.gctoolkit.GCToolKit;
 import com.microsoft.gctoolkit.io.GCLogFile;
@@ -25,12 +26,14 @@ public class Analyzer {
     private final int chartWidth;
     private final int chartHeight;
     private final boolean color;
+    private final MarkerStyle markers;
 
-    public Analyzer(Path logFile, int chartWidth, int chartHeight, boolean color) {
+    public Analyzer(Path logFile, int chartWidth, int chartHeight, boolean color, MarkerStyle markers) {
         this.logFile = logFile;
         this.chartWidth = chartWidth;
         this.chartHeight = chartHeight;
         this.color = color;
+        this.markers = markers;
     }
 
     public void run(PrintStream out) throws Exception {
@@ -45,9 +48,9 @@ public class Analyzer {
 
         new JvmSummaryReport(jvm, counts).print(out);
         out.println();
-        new HeapChartReport(heap, chartWidth, chartHeight).print(out);
+        new HeapChartReport(heap, chartWidth, chartHeight, markers).print(out);
         out.println();
-        new PauseChartReport(pauses, chartWidth, chartHeight).print(out);
+        new PauseChartReport(pauses, chartWidth, chartHeight, markers).print(out);
         out.println();
         new DiagnosticsReport(jvm, pauses, heap, counts, color).print(out);
     }

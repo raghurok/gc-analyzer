@@ -27,16 +27,15 @@ dependencies {
 application {
     mainClass.set("com.gcanalyzer.Main")
     applicationName = "gc-analyzer"
-}
-
-// Netty (pulled in by gctoolkit-vertx) calls sun.misc.Unsafe and uses native
-// access. On JDK 23+ this produces startup warnings that pollute the report.
-// We only want these flags on the installDist launcher (which runs under the
-// user's system Java, likely 23+); the Gradle `run` task uses the toolchain
-// JDK 17 which doesn't recognize `--sun-misc-unsafe-memory-access` and
-// doesn't emit the warnings in the first place.
-tasks.named<CreateStartScripts>("startScripts") {
-    defaultJvmOpts = listOf(
+    // Netty (pulled in by gctoolkit-vertx) calls sun.misc.Unsafe and uses
+    // native access. On JDK 23+ this produces startup warnings that pollute
+    // the report. Both flags exist on JDK 23+ and are recognized by the
+    // current JDK 25 toolchain, so we apply them to both the `run` task and
+    // the installDist launcher via applicationDefaultJvmArgs. If the
+    // toolchain is ever downgraded below JDK 23, move these onto the
+    // `startScripts` task instead — `--sun-misc-unsafe-memory-access` will
+    // otherwise fail the `run` task with "Unrecognized option".
+    applicationDefaultJvmArgs = listOf(
         "--enable-native-access=ALL-UNNAMED",
         "--sun-misc-unsafe-memory-access=allow"
     )
