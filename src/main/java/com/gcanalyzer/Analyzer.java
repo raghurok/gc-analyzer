@@ -13,6 +13,7 @@ import com.microsoft.gctoolkit.io.GCLogFile;
 import com.microsoft.gctoolkit.io.SingleGCLogFile;
 import com.microsoft.gctoolkit.jvm.JavaVirtualMachine;
 
+import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
 
@@ -40,7 +41,15 @@ public class Analyzer {
         GCLogFile log = new SingleGCLogFile(logFile);
         GCToolKit kit = new GCToolKit();
         kit.loadAggregationsFromServiceLoader();
-        JavaVirtualMachine jvm = kit.analyze(log);
+
+        // gctoolkit-vertx shuts down its event bus in background threads after
+        // analyze() returns.  A known race condition in Vert.x's
+        // DeploymentManager can cause "IllegalStateException: Already
+        // undeployed" to be printed to stderr — the analysis itself succeeds.
+        // We capture stderr during (and briefly after) the analyze() call and
+        // filter out that specific noise before replaying anything genuine.
+        // See: https://github.com/raghurok/gc-analyzer/issues/1
+        JavaVirtualMachine jvm = analyzeWithFilteredStderr(kit, log);
 
         HeapOccupancySummary heap = jvm.getAggregation(HeapOccupancySummary.class).orElse(null);
         PauseTimeSummary pauses = jvm.getAggregation(PauseTimeSummary.class).orElse(null);
@@ -53,5 +62,53 @@ public class Analyzer {
         new PauseChartReport(pauses, chartWidth, chartHeight, markers).print(out);
         out.println();
         new DiagnosticsReport(jvm, pauses, heap, counts, color).print(out);
+    }
+
+    /**
+     * Run {@code kit.analyze()} while capturing stderr, then replay only
+     * the lines that are NOT part of the known Vert.x "Already undeployed"
+     * shutdown noise. A brief pause after analyze() gives background Vert.x
+     * threads time to flush their error output through our captured stream
+     * before we restore the real stderr.
+     */
+    private static JavaVirtualMachine analyzeWithFilteredStderr(GCToolKit kit, GCLogFile log) throws Exception {
+        PrintStream realErr = System.err;
+        ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(errBuffer, true));
+        try {
+            JavaVirtualMachine jvm = kit.analyze(log);
+            // Background Vert.x shutdown threads may still be printing; give
+            // them a moment before we stop capturing.
+            Thread.sleep(200);
+            return jvm;
+        } finally {
+            System.setErr(realErr);
+            replayFilteredStderr(errBuffer.toString(), realErr);
+        }
+    }
+
+    private static void replayFilteredStderr(String captured, PrintStream err) {
+        if (captured.isEmpty()) return;
+        boolean suppressing = false;
+        for (String line : captured.split("\n")) {
+            if (isVertxShutdownNoise(line)) {
+                suppressing = true;
+                continue;
+            }
+            // Suppress stack-trace continuation lines ("    at ...") that
+            // follow a suppressed exception header.
+            if (suppressing && line.trim().startsWith("at ")) {
+                continue;
+            }
+            suppressing = false;
+            err.println(line);
+        }
+    }
+
+    private static boolean isVertxShutdownNoise(String line) {
+        return line.contains("Already undeployed")
+                || line.contains("DeploymentManager")
+                || line.contains("VertxImpl.close")
+                || line.contains("VertxChannel.close");
     }
 }

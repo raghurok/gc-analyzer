@@ -68,10 +68,10 @@ public class Main implements Callable<Integer> {
         // the report on stderr. Silence the parser package unless the user
         // explicitly opts in via GC_ANALYZER_DEBUG.
         if (System.getenv("GC_ANALYZER_DEBUG") == null) {
-            Logger.getLogger("com.microsoft.gctoolkit.parser").setLevel(Level.SEVERE);
-            Logger.getLogger("com.microsoft.gctoolkit").setLevel(Level.SEVERE);
-            Logger.getLogger("io.netty").setLevel(Level.SEVERE);
-            Logger.getLogger("io.vertx").setLevel(Level.SEVERE);
+            Logger.getLogger("com.microsoft.gctoolkit.parser").setLevel(Level.OFF);
+            Logger.getLogger("com.microsoft.gctoolkit").setLevel(Level.OFF);
+            Logger.getLogger("io.netty").setLevel(Level.OFF);
+            Logger.getLogger("io.vertx").setLevel(Level.OFF);
         }
         int exit = new CommandLine(new Main())
                 .setCaseInsensitiveEnumValuesAllowed(true)
