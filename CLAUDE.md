@@ -1,19 +1,23 @@
 # gc-analyzer
 
-Terminal CLI that parses a JVM GC log and prints a JVM summary, ASCII charts of heap occupancy and GC pause times, and a rule-based diagnostics section. Built on Microsoft's [gctoolkit](https://github.com/microsoft/gctoolkit).
-
-Output is plain stdout, pipeable and SSH-friendly. No TUI, no interactivity — by design.
+Terminal CLI for JVM diagnostics. Two modes:
+1. **GC log analysis** — parses a JVM GC log and prints a JVM summary, ASCII charts of heap occupancy and GC pause times, and a rule-based diagnostics section. Built on Microsoft's [gctoolkit](https://github.com/microsoft/gctoolkit). Output is plain stdout, pipeable and SSH-friendly.
+2. **Thread dump visualization** — parses a JVM thread dump (jstack/jcmd/kill -3) and generates an interactive HTML flame graph via d3-flame-graph.
 
 ## Build & run
 
 ```bash
 ./gradlew build                                 # compile + assemble
-./gradlew run --args="samples/gc-sample.log"    # run via Gradle
+./gradlew run --args="samples/gc-sample.log"    # GC log analysis
+./gradlew run --args="threaddump samples/threaddump-sample.txt"  # thread dump → flamegraph HTML
 ./gradlew installDist                           # produce build/install/gc-analyzer/bin/gc-analyzer
 ./build/install/gc-analyzer/bin/gc-analyzer <log>
+./build/install/gc-analyzer/bin/gc-analyzer threaddump <threaddump-file>
 ```
 
-Flags: `<log>` (positional, plain/.gz/.zip), `--width`/`-w` (default 80), `--height`/`-H` (default 12), `--markers`/`-m` (one of `off` (default), `dot`, `cross`, `bullet`), `--no-color`, `--help`, `--version`.
+GC log flags: `<log>` (positional, plain/.gz/.zip), `--width`/`-w` (default 80), `--height`/`-H` (default 12), `--markers`/`-m` (one of `off` (default), `dot`, `cross`, `bullet`), `--no-color`, `--help`, `--version`.
+
+Thread dump flags: `threaddump <file>`, `--format`/`-f` (default `flamegraph`), `--output`/`-o` (default `<input>-flamegraph.html`).
 
 Set `GC_ANALYZER_DEBUG=1` to unmute `java.util.logging` warnings from the gctoolkit parser and Netty/Vert.x — useful when a log isn't producing expected events.
 
@@ -37,24 +41,48 @@ src/main/
 │   │   ├── GCCycleCountsAggregation.java      abstract API: count(type, cause)
 │   │   ├── GCCycleCountsAggregator.java
 │   │   └── GCCycleCountsSummary.java          EnumMap<GarbageCollectionTypes,Long> + cause counts
-│   └── report/
-│       ├── JvmSummaryReport.java     collector name, runtime, GC cycle breakdown, -Xmx from cmdline
-│       ├── HeapChartReport.java      downsamples KB→MB, linear scale, renders via ASCIIGraph
-│       ├── PauseChartReport.java     downsamples via MAX per bucket, log₁₀ scale (floor 0.1 ms)
-│       ├── ChartUtil.java            shared: X-axis footer, log label rewrite, marker overlay
-│       └── DiagnosticsReport.java    rule-based ✓/⚠/ℹ checks with ANSI color
-└── resources/META-INF/services/
-    └── com.microsoft.gctoolkit.aggregator.Aggregation    SPI: lists the three *Summary classes
-samples/                 sample GC logs for smoke testing (gc-sample.log, .gz)
+│   ├── report/
+│   │   ├── JvmSummaryReport.java     collector name, runtime, GC cycle breakdown, -Xmx from cmdline
+│   │   ├── HeapChartReport.java      downsamples KB→MB, linear scale, renders via ASCIIGraph
+│   │   ├── PauseChartReport.java     downsamples via MAX per bucket, log₁₀ scale (floor 0.1 ms)
+│   │   ├── ChartUtil.java            shared: X-axis footer, log label rewrite, marker overlay
+│   │   └── DiagnosticsReport.java    rule-based ✓/⚠/ℹ checks with ANSI color
+│   └── threaddump/                   thread dump parsing + flame graph generation
+│       ├── ThreadDumpCommand.java    picocli @Command subcommand, orchestrates parse → render
+│       ├── ThreadDumpParser.java     line-by-line state machine for jstack format
+│       ├── ThreadInfo.java           record: name, state, stackFrames
+│       ├── FlameGraphData.java       builds trie from stacks, serializes to d3-flame-graph JSON
+│       ├── FlameGraphHtmlRenderer.java  reads HTML template, injects JSON, writes file
+│       └── OutputFormat.java         enum (FLAMEGRAPH; extensible for future formats)
+└── resources/
+    ├── META-INF/services/
+    │   └── com.microsoft.gctoolkit.aggregator.Aggregation    SPI: lists the three *Summary classes
+    └── templates/
+        └── flamegraph.html           HTML template with d3-flame-graph from CDN
+samples/                 sample GC logs and thread dumps for smoke testing
 ```
 
-## How an analysis flows
+## How GC log analysis flows
 
 1. `Main` parses args, suppresses gctoolkit/Netty/Vertx `java.util.logging` noise, delegates to `Analyzer`.
 2. `Analyzer` opens `SingleGCLogFile` (handles plain/.gz/.zip transparently), calls `GCToolKit.loadAggregationsFromServiceLoader()` which discovers our three `*Summary` classes via `META-INF/services`, then `kit.analyze(log)` runs the parser + aggregators.
 3. Each `*Aggregator` registers handlers for `G1GCPauseEvent` / `GenerationalGCPauseEvent` and writes into its aggregation via the abstract `recordX` / `addDataPoint` methods.
 4. `Analyzer` pulls out the three summaries via `jvm.getAggregation(XxxSummary.class)` and hands them to the four report classes in order: summary → heap chart → pause chart → diagnostics.
 5. Reports print straight to the `PrintStream`.
+
+## How thread dump analysis flows
+
+1. `Main` recognizes the `threaddump` subcommand and delegates to `ThreadDumpCommand`.
+2. `ThreadDumpParser` reads the file line-by-line with a state machine, producing `List<ThreadInfo>`. Threads with no stack frames (e.g. GC threads, VM threads) are skipped.
+3. `FlameGraphData` reverses each thread's stack (so entry point is at root) and merges them into a trie. Each node's value = number of threads sharing that stack prefix.
+4. `FlameGraphHtmlRenderer` loads the `flamegraph.html` template from classpath, injects the trie as JSON, and writes the self-contained HTML file.
+5. The HTML loads d3 and d3-flame-graph from jsdelivr CDN at view time.
+
+## Adding a new thread dump output format
+
+1. Add a constant to `OutputFormat.java` (e.g. `SUMMARY`).
+2. Create a new renderer class in `threaddump/` (e.g. `ThreadDumpSummaryRenderer.java`).
+3. Add a `case` in `ThreadDumpCommand.call()` to dispatch to the new renderer.
 
 ## Key dependencies
 

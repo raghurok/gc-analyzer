@@ -1,6 +1,7 @@
 package com.gcanalyzer;
 
 import com.gcanalyzer.report.MarkerStyle;
+import com.gcanalyzer.threaddump.ThreadDumpCommand;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -16,11 +17,12 @@ import java.util.logging.Logger;
         name = "gc-analyzer",
         mixinStandardHelpOptions = true,
         version = "gc-analyzer 0.1.0",
-        description = "Parse a JVM GC log and print a summary, ASCII charts, and diagnostics."
+        description = "JVM diagnostic tool: GC log analysis, thread dump visualization.",
+        subcommands = {ThreadDumpCommand.class}
 )
 public class Main implements Callable<Integer> {
 
-    @Parameters(index = "0", paramLabel = "<log>",
+    @Parameters(index = "0", paramLabel = "<log>", arity = "0..1",
             description = "Path to a GC log file (plain text, .gz, or .zip). Unified logging (Java 9+) is supported.")
     private Path logFile;
 
@@ -41,6 +43,10 @@ public class Main implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        if (logFile == null) {
+            new CommandLine(this).usage(System.out);
+            return 0;
+        }
         if (!Files.exists(logFile)) {
             System.err.println("Error: file not found: " + logFile);
             return 2;
