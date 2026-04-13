@@ -15,8 +15,6 @@ jobs:
         include:
           - os: macos-latest
             arch_label: macos-aarch64
-          - os: macos-13
-            arch_label: macos-x86_64
           - os: ubuntu-latest
             arch_label: linux-x86_64
     runs-on: ${{ matrix.os }}
