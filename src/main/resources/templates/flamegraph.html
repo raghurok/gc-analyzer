@@ -67,21 +67,16 @@
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3-flame-graph@4/dist/d3-flamegraph.min.js"></script>
     <script>
-        const data = /* __FLAMEGRAPH_DATA__ */null;
+        // Data is embedded as a JSON string (not a JS object literal) because
+        // V8's JS parser overflows on deeply nested object literals (~7500+
+        // brace levels), while JSON.parse() handles arbitrary depth iteratively.
+        var data = JSON.parse('/* __FLAMEGRAPH_DATA__ */');
 
-        const chart = flamegraph()
+        var chart = flamegraph()
             .width(document.getElementById('chart').offsetWidth)
             .cellHeight(18)
             .transitionDuration(300)
-            .setDetailsElement(document.getElementById('details'))
-            .setDetailsHandler(function(d) {
-                if (d) {
-                    document.getElementById('details').innerHTML =
-                        d.data.name + ' &mdash; ' + d.data.value + ' thread(s)';
-                } else {
-                    document.getElementById('details').innerHTML = '';
-                }
-            });
+            .setDetailsElement(document.getElementById('details'));
 
         d3.select("#chart")
             .datum(data)
