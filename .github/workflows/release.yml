@@ -9,15 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            arch_label: macos-aarch64
-          - os: ubuntu-latest
-            arch_label: linux-x86_64
-    runs-on: ${{ matrix.os }}
+  release:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -31,34 +24,12 @@ jobs:
       - name: Build distribution
         run: ./gradlew dist
 
-      - name: Rename artifact to match platform label
-        run: |
-          cd build/dist
-          src=$(ls gc-analyzer-*.tar.gz)
-          version=$(echo "$src" | sed 's/gc-analyzer-\(.*\)-.*-.*\.tar\.gz/\1/')
-          dest="gc-analyzer-${version}-${{ matrix.arch_label }}.tar.gz"
-          if [ "$src" != "$dest" ]; then mv "$src" "$dest"; fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.arch_label }}
-          path: build/dist/gc-analyzer-*.tar.gz
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" artifacts/gc-analyzer-*.tar.gz \
+          gh release create "$TAG" build/dist/gc-analyzer-*.tar.gz \
             --repo "$GITHUB_REPOSITORY" \
             --title "gc-analyzer $TAG" \
             --generate-notes
