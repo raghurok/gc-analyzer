@@ -1,0 +1,106 @@
+2024-01-15 10:30:45
+Full thread dump OpenJDK 64-Bit Server VM (25+22 mixed mode, sharing):
+
+"main" #1 prio=5 os_prio=0 tid=0x00007f8a1c00a000 nid=0x1 runnable [0x00007f8a23ffe000]
+   java.lang.Thread.State: RUNNABLE
+	at java.io.FileInputStream.readBytes(java.base@25/Native Method)
+	at java.io.FileInputStream.read(java.base@25/FileInputStream.java:276)
+	at java.io.BufferedInputStream.fill(java.base@25/BufferedInputStream.java:244)
+	at java.io.BufferedInputStream.read(java.base@25/BufferedInputStream.java:263)
+	at com.example.app.DataLoader.loadFromFile(DataLoader.java:84)
+	at com.example.app.DataLoader.load(DataLoader.java:42)
+	at com.example.app.Application.start(Application.java:55)
+	at com.example.app.Application.main(Application.java:22)
+
+"http-handler-1" #12 daemon prio=5 os_prio=0 tid=0x00007f8a1c10b800 nid=0xc waiting on condition [0x00007f8a10ffe000]
+   java.lang.Thread.State: WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@25/Native Method)
+	at java.util.concurrent.locks.LockSupport.park(java.base@25/LockSupport.java:221)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(java.base@25/AbstractQueuedSynchronizer.java:2189)
+	at java.util.concurrent.LinkedBlockingQueue.take(java.base@25/LinkedBlockingQueue.java:435)
+	at java.util.concurrent.ThreadPoolExecutor.getTask(java.base@25/ThreadPoolExecutor.java:1071)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@25/ThreadPoolExecutor.java:1132)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@25/ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(java.base@25/Thread.java:1447)
+
+"http-handler-2" #13 daemon prio=5 os_prio=0 tid=0x00007f8a1c10c800 nid=0xd runnable [0x00007f8a10efe000]
+   java.lang.Thread.State: RUNNABLE
+	at java.net.SocketInputStream.socketRead0(java.base@25/Native Method)
+	at java.net.SocketInputStream.socketRead(java.base@25/SocketInputStream.java:116)
+	at java.net.SocketInputStream.read(java.base@25/SocketInputStream.java:171)
+	at java.io.BufferedInputStream.fill(java.base@25/BufferedInputStream.java:244)
+	at java.io.BufferedInputStream.read(java.base@25/BufferedInputStream.java:263)
+	at com.example.app.http.RequestParser.parseBody(RequestParser.java:92)
+	at com.example.app.http.RequestParser.parse(RequestParser.java:35)
+	at com.example.app.http.HttpHandler.handle(HttpHandler.java:67)
+	at com.example.app.http.HttpHandler.run(HttpHandler.java:41)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@25/ThreadPoolExecutor.java:1132)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@25/ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(java.base@25/Thread.java:1447)
+
+"http-handler-3" #14 daemon prio=5 os_prio=0 tid=0x00007f8a1c10d800 nid=0xe runnable [0x00007f8a10dfe000]
+   java.lang.Thread.State: RUNNABLE
+	at java.net.SocketInputStream.socketRead0(java.base@25/Native Method)
+	at java.net.SocketInputStream.socketRead(java.base@25/SocketInputStream.java:116)
+	at java.net.SocketInputStream.read(java.base@25/SocketInputStream.java:171)
+	at java.io.BufferedInputStream.fill(java.base@25/BufferedInputStream.java:244)
+	at java.io.BufferedInputStream.read(java.base@25/BufferedInputStream.java:263)
+	at com.example.app.http.RequestParser.parseBody(RequestParser.java:92)
+	at com.example.app.http.RequestParser.parse(RequestParser.java:35)
+	at com.example.app.http.HttpHandler.handle(HttpHandler.java:67)
+	at com.example.app.http.HttpHandler.run(HttpHandler.java:41)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@25/ThreadPoolExecutor.java:1132)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@25/ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(java.base@25/Thread.java:1447)
+
+"db-pool-1" #15 daemon prio=5 os_prio=0 tid=0x00007f8a1c10e800 nid=0xf waiting on condition [0x00007f8a10cfe000]
+   java.lang.Thread.State: TIMED_WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(java.base@25/Native Method)
+	at java.util.concurrent.locks.LockSupport.parkNanos(java.base@25/LockSupport.java:269)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(java.base@25/AbstractQueuedSynchronizer.java:2248)
+	at java.util.concurrent.LinkedBlockingQueue.poll(java.base@25/LinkedBlockingQueue.java:467)
+	at com.example.app.db.ConnectionPool.getConnection(ConnectionPool.java:55)
+	at com.example.app.db.QueryExecutor.execute(QueryExecutor.java:30)
+	at com.example.app.service.UserService.findById(UserService.java:47)
+	at com.example.app.http.UserHandler.handleGet(UserHandler.java:28)
+	at com.example.app.http.HttpHandler.handle(HttpHandler.java:62)
+	at com.example.app.http.HttpHandler.run(HttpHandler.java:41)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@25/ThreadPoolExecutor.java:1132)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@25/ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(java.base@25/Thread.java:1447)
+
+"db-pool-2" #16 daemon prio=5 os_prio=0 tid=0x00007f8a1c10f800 nid=0x10 waiting for monitor entry [0x00007f8a10bfe000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.example.app.db.ConnectionPool.getConnection(ConnectionPool.java:48)
+	- waiting to lock <0x000000076bf30a58> (a com.example.app.db.ConnectionPool)
+	at com.example.app.db.QueryExecutor.execute(QueryExecutor.java:30)
+	at com.example.app.service.OrderService.listOrders(OrderService.java:63)
+	at com.example.app.http.OrderHandler.handleList(OrderHandler.java:35)
+	at com.example.app.http.HttpHandler.handle(HttpHandler.java:64)
+	at com.example.app.http.HttpHandler.run(HttpHandler.java:41)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(java.base@25/ThreadPoolExecutor.java:1132)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(java.base@25/ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(java.base@25/Thread.java:1447)
+
+"GC-thread-0" #3 daemon prio=9 os_prio=0 tid=0x00007f8a1c040800 nid=0x3 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"VM Thread" os_prio=0 tid=0x00007f8a1c03a000 nid=0x2 runnable
+
+"Reference Handler" #2 daemon prio=10 os_prio=0 tid=0x00007f8a1c0c3000 nid=0x4 waiting on condition [0x00007f8a117fe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.ref.Reference.waitForReferencePendingList(java.base@25/Native Method)
+	at java.lang.ref.Reference.processPendingReferences(java.base@25/Reference.java:246)
+	at java.lang.ref.Reference$ReferenceHandler.run(java.base@25/Reference.java:208)
+
+"Finalizer" #3 daemon prio=8 os_prio=0 tid=0x00007f8a1c0c5000 nid=0x5 waiting on condition [0x00007f8a116fe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(java.base@25/Native Method)
+	- waiting on <0x000000076be08f98> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@25/ReferenceQueue.java:155)
+	- locked <0x000000076be08f98> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(java.base@25/ReferenceQueue.java:176)
+	at java.lang.ref.Finalizer$FinalizerThread.run(java.base@25/Finalizer.java:172)
+
+"Signal Dispatcher" #4 daemon prio=9 os_prio=0 tid=0x00007f8a1c0e5800 nid=0x6 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE

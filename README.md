@@ -1,8 +1,8 @@
 # gc-analyzer
 
-A terminal CLI that parses a JVM garbage-collection log and prints a summary, two ASCII charts (heap occupancy and GC pause times), and a rule-based diagnostics block — all to plain stdout. Pipeable, SSH-friendly, no GUI.
+A terminal CLI for JVM diagnostics: parse GC logs for ASCII charts and diagnostics, or visualize thread dumps as interactive flame graphs.
 
-Built on Microsoft's [gctoolkit](https://github.com/microsoft/gctoolkit), so it understands whatever `gctoolkit` understands — G1, Parallel, Serial, CMS, ZGC, Shenandoah — with unified logging (Java 9+) as the primary target.
+Built on Microsoft's [gctoolkit](https://github.com/microsoft/gctoolkit) for GC analysis (G1, Parallel, Serial, CMS, ZGC, Shenandoah — unified logging Java 9+ as primary target). Thread dump visualization uses [d3-flame-graph](https://github.com/nicedoc/d3-flame-graph).
 
 ## What it gives you
 
@@ -10,6 +10,10 @@ Built on Microsoft's [gctoolkit](https://github.com/microsoft/gctoolkit), so it 
 - **Heap-after-GC chart** — linear Y-axis in MB, one plotted point per downsampled time bucket, with a time-range footer under the body.
 - **GC pause-time chart** — log₁₀ Y-axis (so tail pauses and baseline pauses are both visible in the same view), pauses ≤ 0.1 ms collapsed to the floor.
 - **Diagnostics** — green ✓ / yellow ⚠ rule checks for long pauses (>500 ms), overall % time paused, post-GC heap growth (likely leak signal), `System.gc()` calls, and Full GCs.
+
+### Thread dump analysis
+
+- **Flame graph** — interactive HTML flame graph from a JVM thread dump (jstack / `jcmd Thread.print` / kill -3 output). Click to zoom, type to search frames. Threads with identical stack prefixes are merged into the flame, so you can instantly see where threads are spending time.
 
 ## Requirements
 
@@ -34,23 +38,41 @@ The `installDist` launcher at `build/install/gc-analyzer/bin/gc-analyzer` is a p
 
 ## Options
 
-```
-Usage: gc-analyzer [-hV] [--no-color] [-H=<height>] [-m=<style>] [-w=<width>] <log>
+### GC log analysis (default)
 
-Parse a JVM GC log and print a summary, ASCII charts, and diagnostics.
+```
+Usage: gc-analyzer [-hV] [--no-color] [-H=<height>] [-m=<style>] [-w=<width>] [<log>] [COMMAND]
 
       <log>               Path to a GC log file (plain text, .gz, or .zip).
-                            Unified logging (Java 9+) is supported.
-  -h, --help              Show this help message and exit.
   -H, --height=<height>   Chart height in rows (default: 12).
   -m, --markers=<style>   Overlay a glyph at each plotted sample point. One of:
                             off, dot, cross, bullet. Default: off.
       --no-color          Disable ANSI color in the diagnostics section.
-  -V, --version           Print version information and exit.
   -w, --width=<width>     Chart width in characters (default: 80).
 ```
 
 Set `GC_ANALYZER_DEBUG=1` if you want to unmute gctoolkit / Netty / Vert.x `java.util.logging` warnings — useful when a log isn't producing the events you expect and you want to see why.
+
+### Thread dump flame graph
+
+```
+Usage: gc-analyzer threaddump [-hV] [-f=<format>] [-o=<file>] <file>
+
+      <file>              Path to a JVM thread dump file (jstack / jcmd Thread.print output).
+  -f, --format=<format>   Output format: FLAMEGRAPH. Default: FLAMEGRAPH.
+  -o, --output=<file>     Output file path. Default: <input>-flamegraph.html in
+                            current directory.
+```
+
+```bash
+# generate a thread dump, then visualize it
+jstack <pid> > /tmp/threads.txt
+gc-analyzer threaddump /tmp/threads.txt
+# → writes threads-flamegraph.html, open in any browser
+
+# custom output path
+gc-analyzer threaddump /tmp/threads.txt -o /tmp/flame.html
+```
 
 ## Sample output
 
@@ -143,8 +165,10 @@ The three glyphs are calibrated lightest to heaviest:
 - `src/main/java/com/gcanalyzer/Analyzer.java` — orchestrates `GCToolKit.analyze()` and report ordering
 - `src/main/java/com/gcanalyzer/aggregation/` — three `Aggregation` / `Aggregator` / `Summary` triples (heap occupancy, pause times, GC cycle counts), discovered by gctoolkit via `META-INF/services`
 - `src/main/java/com/gcanalyzer/report/` — the four report printers plus `ChartUtil` (X-axis footer, log label rewrite, marker overlay) and `MarkerStyle`
+- `src/main/java/com/gcanalyzer/threaddump/` — thread dump parsing and flame graph generation (`ThreadDumpCommand`, `ThreadDumpParser`, `FlameGraphData`, `FlameGraphHtmlRenderer`)
 - `src/main/resources/META-INF/services/com.microsoft.gctoolkit.aggregator.Aggregation` — service-loader registration for the three summary classes
-- `samples/` — sample GC log used by the smoke test
+- `src/main/resources/templates/flamegraph.html` — HTML template for interactive d3-flame-graph output
+- `samples/` — sample GC log and thread dump for smoke testing
 
 ## License
 
