@@ -14,7 +14,9 @@ import java.util.List;
 public class FlameGraphHtmlRenderer {
 
     private static final String TEMPLATE_PATH = "/templates/flamegraph.html";
-    private static final String DATA_PLACEHOLDER = "/* __FLAMEGRAPH_DATA__ */null";
+    // The JSON is embedded inside a JS single-quoted string: JSON.parse('...')
+    // so the placeholder includes the surrounding quotes from the template.
+    private static final String DATA_PLACEHOLDER = "/* __FLAMEGRAPH_DATA__ */";
     private static final String SUBTITLE_PLACEHOLDER = "/* __SUBTITLE__ */";
 
     public void render(List<ThreadInfo> threads, Path inputFile, Path outputFile) throws IOException {
@@ -24,9 +26,16 @@ public class FlameGraphHtmlRenderer {
         data.addAll(threads);
         String json = data.toJson();
 
+        // The JSON is placed inside a JS single-quoted string: JSON.parse('...')
+        // so we must escape single quotes and backslashes for that context.
+        // Backslashes in the JSON (from escapeJson) are already doubled for JSON;
+        // we need to double them again for the JS string literal, and escape
+        // any single quotes that appear in frame names.
+        String jsStringContent = json.replace("\\", "\\\\").replace("'", "\\'");
+
         String subtitle = threads.size() + " threads from " + inputFile.getFileName();
         String html = template
-                .replace(DATA_PLACEHOLDER, json)
+                .replace(DATA_PLACEHOLDER, jsStringContent)
                 .replace(SUBTITLE_PLACEHOLDER, subtitle);
 
         Files.writeString(outputFile, html, StandardCharsets.UTF_8);

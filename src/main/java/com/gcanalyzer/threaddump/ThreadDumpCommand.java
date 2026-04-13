@@ -70,6 +70,6 @@ public class ThreadDumpCommand implements Callable<Integer> {
         String suffix = switch (format) {
             case FLAMEGRAPH -> "-flamegraph.html";
         };
-        return Path.of(baseName + suffix);
+        return inputFile.toAbsolutePath().getParent().resolve(baseName + suffix);
     }
 }
